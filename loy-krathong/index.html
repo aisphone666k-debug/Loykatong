@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ลอยกระทงกับแฟน 🌸🌕 | Loy Krathong with Love</title>
+  
+  <!-- Google Fonts: Sarabun (Web font counterpart for TH Sarabun PSK) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- PeerJS for WebRTC Realtime Couple Connection -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- MQTT.js for Worldwide Cross-Country Realtime Connection -->
+  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+</head>
+<body>
+
+  <!-- Ambient Stars & Glow Background -->
+  <div class="bg-ambient">
+    <div class="ambient-stars"></div>
+  </div>
+
+  <div id="app-container">
+
+    <!-- Top Navigation & Brand Header -->
+    <header class="app-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- Global Header Back Button -->
+        <button class="secondary-btn" id="header-back-btn" style="display: none; padding: 6px 14px; font-size: 0.85rem; border-color: rgba(255, 215, 0, 0.4); border-radius: 20px;">
+          ← ย้อนกลับ
+        </button>
+
+        <div class="brand-badge" id="brand-home-btn" title="คลิกเพื่อกลับหน้าแรก">
+          <div class="brand-icon">🪷</div>
+          <div>
+            <h1 class="brand-title">ลอยกระทงกับแฟน</h1>
+            <p class="brand-subtitle">Loy Krathong with My Dearest ❤️</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- BGM Music Player Widget (Single Loy Krathong Song) -->
+        <div class="music-widget" id="music-toggle-btn" title="คลิกเพื่อเปิด/หยุดเพลงลอยกระทง">
+          <div class="music-disk" id="music-disk-icon"></div>
+          <div class="music-info">
+            <span class="music-title" id="music-track-title">🎶 เพลงวันลอยกระทง</span>
+            <span class="music-status" id="music-status-text">คลิกเพื่อเปิดเพลง ▶</span>
+          </div>
+          <!-- Hidden since user requested only this single song -->
+          <button class="secondary-btn" id="music-next-btn" style="display: none; padding: 2px 8px; font-size: 0.75rem; border-radius: 50%;" title="เล่นซ้ำตั้งแต่ต้น">🔄</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- HTML5 Audio for the Single Loy Krathong MP3 -->
+    <audio id="bgm-audio" loop preload="auto" src="เพลงลอยกระทง วันลอยกระทง Loy Krathong Thailand 4k Video.mp3"></audio>
+
+    <!-- =========================================================
+         SCREEN 1: HOME & WELCOME
+         ========================================================= -->
+    <main class="screen active" id="screen-home">
+      <div class="home-container">
+        <!-- Hero Moon Graphic with User's Krathong -->
+        <div class="hero-moon-wrapper">
+          <div class="hero-moon"></div>
+          <div class="hero-moon-krathong">
+            <img src="krathong-clean.png" onerror="this.src='กระทง.png'; this.style.clipPath='inset(0 0 20% 0)'" alt="กระทงวันเพ็ญ" class="hero-krathong-img">
+          </div>
+        </div>
+
+        <h2 class="hero-heading">ลอยกระทงออนไลน์เคียงคู่กับคนที่คุณรัก</h2>
+        <p class="hero-desc">
+          ประดิษฐ์กระทงในแบบของคุณ ติดรูปคู่สุดพิเศษ เปิดเพลงวันเพ็ญเดือนสิบสอง<br>
+          แล้วลอยไปตามสายน้ำด้วยกันแบบเรียลไทม์ใต้แสงจันทร์ 🌕✨
+        </p>
+
+
+        <!-- Mode Selection Cards -->
+        <div class="mode-cards">
+          <!-- Mode 1: Create Couple Room -->
+          <div class="mode-card glass-panel" id="mode-create-room">
+            <div class="mode-icon">💌</div>
+            <h3 class="mode-title">สร้างห้องลอยกับแฟน</h3>
+            <p class="mode-desc">สร้างห้องส่วนตัว รับรหัสห้องหรือแชร์ลิงก์ให้แฟน เพื่อประดิษฐ์กระทงและลอยด้วยกันแบบเรียลไทม์</p>
+            <div style="margin-top: 16px;">
+              <button class="primary-btn" id="btn-create-room" style="width: 100%;">
+                <span>สร้างห้องคู่รัก</span>
+                <span>✨</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode 2: Join Partner's Room -->
+          <div class="mode-card glass-panel" id="mode-join-room">
+            <div class="mode-icon">🗝️</div>
+            <h3 class="mode-title">เข้าร่วมห้องของแฟน</h3>
+            <p class="mode-desc">มีรหัสห้องที่แฟนส่งมาแล้วใช่ไหม? กรอกรหัสเพื่อเข้าห้องไปลอยกระทงคู่กันทันที</p>
+            <div style="margin-top: 16px;">
+              <button class="secondary-btn" id="btn-join-room" style="width: 100%;">
+                <span>ใส่รหัสห้อง</span>
+                <span>🚪</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode 3: Single Device / Solo Couple -->
+          <div class="mode-card glass-panel" id="mode-solo">
+            <div class="mode-icon">👫</div>
+            <h3 class="mode-title">ลอยกระทงคู่ในเครื่องเดียว</h3>
+            <p class="mode-desc">นั่งอยู่ด้วยกันพอดี หรืออยากลองออกแบบกระทงคู่ปล่อยลงแม่น้ำทันทีโดยไม่ต้องต่อเน็ต</p>
+            <div style="margin-top: 16px;">
+              <button class="secondary-btn" id="btn-solo" style="width: 100%;">
+                <span>เริ่มประดิษฐ์ทันที</span>
+                <span>🌊</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- =========================================================
+         SCREEN 2: KRATHONG STUDIO (ห้องประดิษฐ์กระทง)
+         ========================================================= -->
+    <section class="screen" id="screen-studio">
+      <div class="studio-container">
+
+        <!-- Left Column: Live Krathong Preview -->
+        <div class="preview-column">
+          <div class="preview-box glass-panel">
+            <div class="preview-water-bg"></div>
+            <!-- Stage where SVG renders -->
+            <div class="krathong-stage" id="live-krathong-stage"></div>
+          </div>
+
+          <!-- Studio Dual Ready Status & Preview Switcher -->
+          <div class="studio-status-bar glass-panel">
+            <div class="ready-chips-group">
+              <div class="ready-chip" id="chip-my-ready">
+                <span id="icon-my-ready">✏️</span>
+                <span id="text-my-ready">เรา: กำลังแต่ง</span>
+              </div>
+              <div class="ready-chip" id="chip-partner-ready">
+                <span id="icon-partner-ready">⏳</span>
+                <span id="text-partner-ready">แฟน: รอเชื่อมต่อ...</span>
+              </div>
+            </div>
+
+            <!-- Preview Toggle Button -->
+            <div class="preview-switch-tabs">
+              <button class="preview-switch-btn active" id="btn-preview-mine">🪷 ของเรา</button>
+              <button class="preview-switch-btn" id="btn-preview-partner">💕 ของแฟน</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Customization Tabs -->
+        <div class="customizer-column">
+          <!-- Top Back Button in Studio -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <button class="secondary-btn" id="studio-top-back-btn" style="padding: 6px 14px; font-size: 0.85rem; border-radius: 20px;">
+              ← ย้อนกลับหน้าแรก
+            </button>
+            <span style="font-size: 0.8rem; color: var(--lotus-soft);">🎨 ห้องตกแต่งกระทงคู่</span>
+          </div>
+
+          <!-- Studio Couple Names Card (ใส่ชื่อคู่เราในหน้าแต่งกระทง) -->
+          <div class="glass-panel" id="studio-names-card" style="padding: 12px 16px; margin-bottom: 12px; border-radius: 14px; border: 1px solid rgba(255, 215, 0, 0.35); transition: all 0.3s ease;">
+            <div style="font-weight: 600; font-size: 1.05rem; color: var(--gold-glow); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+              <span>💑 ใส่ชื่อคู่เราสำหรับลอยกระทง</span>
+              <span style="font-size: 0.8rem; color: var(--lotus-soft); font-weight: normal;">(แสดงบนป้ายชื่อกระทง)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label for="input-my-name" style="font-size: 0.88rem; color: #fff; display: block; margin-bottom: 4px; font-weight: 500;">
+                  ชื่อเรา <span style="color: #ff4081;">*</span>
+                </label>
+                <input type="text" id="input-my-name" class="input-field" placeholder="ชื่อเรา" maxlength="20" autocomplete="off" style="margin: 0; padding: 8px 12px; font-size: 0.95rem;">
+              </div>
+              <div>
+                <label for="input-partner-name" style="font-size: 0.88rem; color: #fff; display: block; margin-bottom: 4px; font-weight: 500;">
+                  ชื่อแฟน <span style="color: #ff4081;">*</span>
+                </label>
+                <input type="text" id="input-partner-name" class="input-field" placeholder="ชื่อแฟน" maxlength="20" autocomplete="off" style="margin: 0; padding: 8px 12px; font-size: 0.95rem;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation Tabs -->
+          <div class="tabs-nav" id="studio-tabs-nav">
+            <button class="tab-btn active" data-tab="tab-base">🍃 ฐานกระทง</button>
+            <button class="tab-btn" data-tab="tab-petals">🌸 กลีบประดับ</button>
+            <button class="tab-btn" data-tab="tab-flowers">💐 ดอกไม้บูชา</button>
+            <button class="tab-btn" data-tab="tab-candles">🕯️ ธูปเทียน</button>
+            <button class="tab-btn" data-tab="tab-photo">📸 รูปคู่เรา</button>
+            <button class="tab-btn" data-tab="tab-decorations">✨ ของตกแต่ง</button>
+            <button class="tab-btn" data-tab="tab-wish">💌 คำอธิษฐาน</button>
+          </div>
+
+          <!-- Tab 1: Base Selection -->
+          <div class="tab-content glass-panel active" id="tab-base">
+            <div style="margin-bottom: 14px; font-weight: 600; color: var(--gold-glow);">เลือกวัสดุฐานกระทงที่คุณชอบ</div>
+            <div class="options-grid" id="options-bases"></div>
+          </div>
+
+          <!-- Tab 2: Petals Selection -->
+          <div class="tab-content glass-panel" id="tab-petals">
+            <div style="margin-bottom: 14px; font-weight: 600; color: var(--gold-glow);">เลือกลายกลีบพับรอบฐานกระทง</div>
+            <div class="options-grid" id="options-petals"></div>
+          </div>
+
+          <!-- Tab 3: Flowers Selection -->
+          <div class="tab-content glass-panel" id="tab-flowers">
+            <div style="margin-bottom: 14px; font-weight: 600; color: var(--gold-glow);">เลือกดอกไม้มงคลประดับกลางกระทง</div>
+            <div class="options-grid" id="options-flowers"></div>
+          </div>
+
+          <!-- Tab 4: Candles & Incense Selection -->
+          <div class="tab-content glass-panel" id="tab-candles">
+            <div style="margin-bottom: 14px; font-weight: 600; color: var(--gold-glow);">เลือกสไตล์เทียนและธูปแห่งความสว่างไสว</div>
+            <div class="options-grid" id="options-candles"></div>
+            
+            <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 0.95rem;">ปักธูป 3 ดอก พร้อมควันหอมลอย</span>
+              <input type="checkbox" id="checkbox-incense" checked style="width: 18px; height: 18px; cursor: pointer;">
+            </div>
+          </div>
+
+          <!-- Tab 5: Custom Photo Upload & Frame -->
+          <div class="tab-content glass-panel" id="tab-photo">
+            <div style="margin-bottom: 10px; font-weight: 600; color: var(--gold-glow);">อัพโหลดรูปคู่หรือรูปแฟนเพื่อปักบนกระทง 📸</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+              เลือกรูปถ่ายที่คุณประทับใจ รูปจะถูกนำมาปักบนก้านไม้เสียบกระทงอย่างน่ารัก
+            </p>
+
+            <!-- Hidden File Input -->
+            <input type="file" id="photo-file-input" accept="image/*" style="display: none;">
+
+            <!-- Drop / Upload Area -->
+            <div class="photo-upload-area" id="photo-upload-trigger">
+              <div class="upload-icon">📷</div>
+              <div style="font-weight: 600; color: #fff;">คลิกเพื่อเลือกรูปถ่ายจากเครื่อง</div>
+              <div style="font-size: 0.75rem; color: var(--lotus-soft); margin-top: 4px;">รองรับ JPG, PNG, GIF (รูปจะอยู่เฉพาะในเบราว์เซอร์ของคุณ ปลอดภัย 100%)</div>
+            </div>
+
+            <!-- Frame Choice -->
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 10px;">เลือกแบบกรอบรูปปักกระทง:</div>
+            <div class="frames-row" id="photo-frames-row">
+              <div class="frame-choice selected" data-frame="heart">💖 กรอบหัวใจ</div>
+              <div class="frame-choice" data-frame="polaroid">📷 โพลารอยด์</div>
+              <div class="frame-choice" data-frame="circle">⭕ วงกลมเรืองแสง</div>
+              <div class="frame-choice" data-frame="stamp">💌 แสตมป์วินเทจ</div>
+            </div>
+
+            <!-- Controls (Zoom, Rotate) -->
+            <div class="photo-controls" style="margin-top: 16px;" id="photo-adjustments-panel">
+              <div class="slider-group">
+                <div class="slider-label">
+                  <span>ขนาดรูป (Zoom)</span>
+                  <span id="val-photo-scale">1.0x</span>
+                </div>
+                <input type="range" class="range-slider" id="slider-photo-scale" min="0.6" max="1.8" step="0.05" value="1.0">
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-label">
+                  <span>องศาเอียง (Rotation)</span>
+                  <span id="val-photo-rotate">0°</span>
+                </div>
+                <input type="range" class="range-slider" id="slider-photo-rotate" min="-30" max="30" step="1" value="0">
+              </div>
+
+              <button class="secondary-btn" id="btn-remove-photo" style="font-size: 0.8rem; padding: 6px 14px; margin-top: 6px; align-self: flex-start; color: #ff80ab;">
+                🗑️ ลบรูปถ่ายออก
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 6: Decorations Selection -->
+          <div class="tab-content glass-panel" id="tab-decorations">
+            <div style="margin-bottom: 14px; font-weight: 600; color: var(--gold-glow);">เพิ่มเครื่องรางความรักและของตกแต่งพิเศษ</div>
+            <div class="options-grid" id="options-decorations"></div>
+          </div>
+
+          <!-- Tab 7: Wishes -->
+          <div class="tab-content glass-panel" id="tab-wish">
+            <div class="wish-container">
+              <div>
+                <label style="font-size: 0.95rem; color: var(--gold-glow); font-weight: 600; display: block; margin-bottom: 6px;">
+                  คำอธิษฐานในคืนวันลอยกระทง 💌
+                </label>
+                <textarea id="input-wish" class="wish-textarea" placeholder="พิมพ์คำอธิษฐานของคุณที่นี่..."></textarea>
+              </div>
+
+              <div style="font-size: 0.85rem; color: var(--lotus-soft); margin-top: 8px;">หรือเลือกคำอธิษฐานยอดฮิต:</div>
+              <div class="quick-wishes">
+                <span class="quick-wish-tag" data-wish="ขอขมาพระแม่คงคา และขอให้ความรักของเราสองคนสดใส มั่นคง มีความสุขตลอดไปนะ ❤️">
+                  💖 ขอให้รักมั่นคงสดใสตลอดไป
+                </span>
+                <span class="quick-wish-tag" data-wish="ขอให้เราสองคนได้มาลอยกระทงเคียงข้างกันแบบนี้ในทุกๆ ปีเลยนะ 🌕">
+                  🌕 ขอให้ได้ลอยด้วยกันทุกปี
+                </span>
+                <span class="quick-wish-tag" data-wish="ขอให้สิ่งไม่ดีลอยไปกับสายน้ำ มีแต่รอยยิ้ม ความสุข และความสำเร็จเข้ามาในชีวิตเราทั้งคู่ ✨">
+                  ✨ สิ่งร้ายจงไป สิ่งดีจงเข้ามา
+                </span>
+                <span class="quick-wish-tag" data-wish="ขอบคุณที่คอยอยู่เคียงข้างและเป็นความสุขให้กันเสมอ รักเธอที่สุดในโลกเลยนะ 🥰">
+                  🥰 ขอบคุณที่อยู่เคียงข้างกัน
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Studio Actions Footer -->
+          <div class="studio-actions glass-panel">
+            <button class="secondary-btn" id="btn-back-home">
+              ← กลับหน้าแรก
+            </button>
+            <button class="primary-btn" id="btn-ready-to-float">
+              <span id="btn-ready-icon">✨</span>
+              <span id="btn-ready-text">พร้อมลอยแล้ว (Ready)</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         SCREEN 3: RIVER VIEW (ผืนน้ำลอยกระทงใต้แสงจันทร์)
+         ========================================================= -->
+    <section class="screen" id="screen-river">
+      <div class="river-view">
+        <!-- 2D Canvas River Simulation -->
+        <canvas id="river-canvas"></canvas>
+
+        <!-- Floating UI Overlay -->
+        <div class="river-ui-overlay">
+          <!-- Top Bar -->
+          <div class="river-top-bar">
+            <!-- Love Information Card -->
+            <div class="love-info-card glass-panel">
+              <div class="couple-names">
+                <span id="river-couple-names">ฉัน 💕 แฟน</span>
+                <span style="font-size: 0.8rem; font-weight: normal; color: #ffb8d2;">· 🌕 ใต้แสงจันทร์ดวงเดียวกัน</span>
+              </div>
+              <div class="couple-wish-text" id="river-couple-wish">
+                "ขอให้ความรักของเราสองคนสดใส มั่นคง มีความสุขตลอดไปนะ"
+              </div>
+            </div>
+
+            <!-- Top Controls in River Scene -->
+            <div class="river-controls-top">
+              <button class="secondary-btn glass-panel" id="btn-river-back-studio" title="ย้อนกลับไปแต่งกระทงใหม่">
+                <span class="btn-text-full">← ย้อนกลับไปแต่งกระทง</span>
+                <span class="btn-text-short">← แต่งใหม่</span>
+              </button>
+              <button class="secondary-btn glass-panel" id="btn-river-back-home" title="ย้อนกลับสู่หน้าแรก">
+                <span>🏠</span><span class="btn-text-full"> หน้าแรก</span>
+              </button>
+              <button class="secondary-btn glass-panel" id="btn-take-photo" title="ถ่ายภาพที่ระลึกกระทงคู่ใต้แสงจันทร์">
+                <span>📷</span><span class="btn-text-full"> ถ่ายรูปที่ระลึก</span><span class="btn-text-short"> ถ่ายรูป</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Toast Floating Container -->
+          <div class="chat-toast-container" id="chat-toast-container"></div>
+
+          <!-- Bottom Reaction Interactive Bar -->
+          <div class="river-bottom-bar">
+            <button class="reaction-btn" id="btn-react-heart" title="ส่งหัวใจบอกรัก">
+              ❤️ <span class="react-text-full">ส่งหัวใจ</span><span class="react-text-short">รัก</span>
+            </button>
+            <button class="reaction-btn" id="btn-react-firework" title="จุดพลุฉลองคืนวันเพ็ญ">
+              🎆 <span class="react-text-full">จุดพลุ</span><span class="react-text-short">พลุ</span>
+            </button>
+            <button class="reaction-btn" id="btn-react-lantern" title="ปล่อยโคมลอยคู่รัก">
+              🏮 <span class="react-text-full">ปล่อยโคม</span><span class="react-text-short">โคม</span>
+            </button>
+            <button class="reaction-btn" id="btn-react-petal" title="โปรยกลีบดอกไม้">
+              🌸 <span class="react-text-full">โปรยดอกไม้</span><span class="react-text-short">ดอกไม้</span>
+            </button>
+            <button class="reaction-btn" id="btn-react-whisper" title="ส่งข้อความกระซิบรัก">
+              💬 <span class="react-text-full">กระซิบรัก</span><span class="react-text-short">กระซิบ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- =========================================================
+       MODALS
+       ========================================================= -->
+
+  <!-- Modal: Join Room -->
+  <div class="modal-overlay" id="modal-join-room">
+    <div class="modal-box glass-panel">
+      <div style="font-size: 2.2rem; margin-bottom: 8px;">🗝️</div>
+      <h3 style="font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 6px;">เข้าร่วมห้องของแฟน</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        ใส่รหัสห้องที่แฟนของคุณส่งให้ (เช่น LOVE-1234)
+      </p>
+
+      <input type="text" id="join-room-input" class="input-field" placeholder="รหัสห้อง (เช่น LOVE-8899)" style="text-align: center; text-transform: uppercase; font-weight: 700; letter-spacing: 2px;">
+
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="secondary-btn" id="btn-cancel-join" style="flex: 1;">← ย้อนกลับ</button>
+        <button class="primary-btn" id="btn-confirm-join" style="flex: 1.2;">เข้าห้อง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Room Created / Share with Partner -->
+  <div class="modal-overlay" id="modal-share-room">
+    <div class="modal-box glass-panel">
+      <div style="font-size: 2.2rem; margin-bottom: 8px;">💌</div>
+      <h3 style="font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 6px;">ห้องลอยกระทงคู่รักสร้างสำเร็จ!</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        แชร์ลิงก์หรือรหัสห้องนี้ให้แฟน เพื่อเข้ามาประดิษฐ์กระทงและลอยด้วยกัน
+      </p>
+
+      <div style="background: rgba(0,0,0,0.4); padding: 14px; border-radius: 12px; border: 1px dashed var(--gold); margin-bottom: 16px;">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">รหัสห้องสำหรับส่งให้แฟน:</div>
+        <div id="modal-room-code-display" style="font-size: 1.6rem; font-weight: 700; color: var(--gold-glow); letter-spacing: 2px;">
+          LOVE-0000
+        </div>
+      </div>
+
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="primary-btn" id="modal-copy-link-btn" style="width: 100%;">
+          📋 คัดลอกรหัสห้อง
+        </button>
+        <button class="secondary-btn" id="modal-start-decorating-btn" style="width: 100%;">
+          เริ่มประดิษฐ์กระทงก่อนเลย 🪷
+        </button>
+        <button class="secondary-btn" id="modal-share-back-btn" style="width: 100%; border-color: rgba(255,255,255,0.25); color: var(--lotus-soft);">
+          ← ย้อนกลับไปเลือกโหมดใหม่
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Quick Whisper Love Messages -->
+  <div class="modal-overlay" id="modal-whisper">
+    <div class="modal-box glass-panel">
+      <div style="font-size: 2rem; margin-bottom: 8px;">💬💖</div>
+      <h3 style="font-size: 1.25rem; font-weight: 600; color: #fff; margin-bottom: 12px;">กระซิบรักถึงแฟน</h3>
+      
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+        <button class="secondary-btn whisper-preset-btn" data-msg="รักแฟนที่สุดในโลกเลยนะ 🥰" style="justify-content: flex-start; text-align: left;">
+          🥰 "รักแฟนที่สุดในโลกเลยนะ"
+        </button>
+        <button class="secondary-btn whisper-preset-btn" data-msg="ขอให้เราอยู่ด้วยกันทุกวันลอยกระทงนะ 🌕" style="justify-content: flex-start; text-align: left;">
+          🌕 "ขอให้เราอยู่ด้วยกันทุกวันลอยกระทงนะ"
+        </button>
+        <button class="secondary-btn whisper-preset-btn" data-msg="ขอบคุณที่เป็นความสุขให้เค้านะ ❤️" style="justify-content: flex-start; text-align: left;">
+          ❤️ "ขอบคุณที่เป็นความสุขให้เค้านะ"
+        </button>
+        <button class="secondary-btn whisper-preset-btn" data-msg="กระทงคู่ใจ ขอให้เราเคียงคู่กันตลอดไป 💕" style="justify-content: flex-start; text-align: left;">
+          💕 "กระทงคู่ใจ ขอให้เราเคียงคู่กันตลอดไป"
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="custom-whisper-input" class="input-field" placeholder="หรือพิมพ์ข้อความของคุณเอง..." style="margin: 0;">
+        <button class="primary-btn" id="btn-send-custom-whisper" style="padding: 10px 16px;">ส่ง</button>
+      </div>
+      
+      <button class="secondary-btn" id="btn-close-whisper" style="margin-top: 14px; width: 100%;">ปิด</button>
+    </div>
+  </div>
+
+  <!-- Modal: Keepsake Souvenir Photo -->
+  <div class="modal-overlay" id="modal-keepsake">
+    <div class="modal-box glass-panel souvenir-frame">
+      <div style="font-size: 1.2rem; font-weight: 700; color: var(--gold-glow); margin-bottom: 8px;">
+        ✨ ภาพความทรงจำคืนวันลอยกระทง ✨
+      </div>
+      <p style="font-size: 0.8rem; color: var(--lotus-soft); margin-bottom: 12px;">
+        สายน้ำแห่งรักใต้แสงจันทร์วันเพ็ญ
+      </p>
+
+      <img id="keepsake-image-preview" class="souvenir-img" alt="Souvenir Keepsake">
+
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="secondary-btn" id="btn-close-keepsake" style="flex: 1;">ปิด</button>
+        <a id="btn-download-keepsake" class="primary-btn" style="flex: 1.5; text-decoration: none;" download="loy-krathong-with-love.png">
+          💾 บันทึกรูปลงเครื่อง
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       COUNTDOWN OVERLAY (นับถอยหลัง 10 วินาที เมื่อพร้อมทั้งคู่)
+       ========================================================= -->
+  <div class="countdown-overlay" id="countdown-overlay">
+    <div class="countdown-moon"></div>
+    <div class="countdown-content">
+      <div style="font-size: 2.2rem; filter: drop-shadow(0 0 10px rgba(255,215,0,0.8));">🌕💖🌕</div>
+      <h2 class="countdown-title">ทั้งสองคนพร้อมลอยแล้ว!</h2>
+      <p class="countdown-subtitle">เตรียมปล่อยกระทงคู่กันลงสู่แม่น้ำเจ้าพระยาใต้แสงจันทร์ในอีก...</p>
+
+      <!-- Circular Progress Ring & Big Number -->
+      <div class="countdown-circle-box">
+        <svg class="countdown-circle-svg" viewBox="0 0 140 140">
+          <defs>
+            <linearGradient id="countdown-gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffd700" />
+              <stop offset="100%" stop-color="#ff4081" />
+            </linearGradient>
+          </defs>
+          <circle class="countdown-circle-bg" cx="70" cy="70" r="60" />
+          <circle class="countdown-circle-progress" id="countdown-progress-ring" cx="70" cy="70" r="60" />
+        </svg>
+        <div class="countdown-number" id="countdown-number-display">10</div>
+      </div>
+
+      <!-- Duo Krathong Preview -->
+      <div class="countdown-duo-preview">
+        <div class="countdown-single-krathong">
+          <div class="countdown-krathong-thumb" id="countdown-my-thumb"></div>
+          <span class="countdown-krathong-name" id="countdown-my-name">กระทงของเรา</span>
+        </div>
+        <div style="font-size: 2rem; color: #ff80ab; animation: floatGentle 2s infinite;">💕</div>
+        <div class="countdown-single-krathong">
+          <div class="countdown-krathong-thumb" id="countdown-partner-thumb"></div>
+          <span class="countdown-krathong-name" id="countdown-partner-name">กระทงของแฟน</span>
+        </div>
+      </div>
+
+      <button class="secondary-btn countdown-cancel-btn" id="btn-cancel-countdown">
+        ✕ ยกเลิก เพื่อกลับไปแต่งกระทงต่อ
+      </button>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/audio.js"></script>
+  <script src="js/krathong-builder.js"></script>
+  <script src="js/river-canvas.js"></script>
+  <script src="js/realtime.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
