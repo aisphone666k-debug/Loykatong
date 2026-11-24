@@ -12,17 +12,128 @@ document.addEventListener('DOMContentLoaded', () => {
     partnerBuilder: new KrathongBuilder(),
     partnerConfig: null,
     partnerConnected: false,
+    cloudConnected: false,
     myReady: false,
     partnerReady: false,
+    readySeq: 0,
     isCountingDown: false,
     previewTarget: 'mine', // 'mine' | 'partner'
     countdownSeconds: 10,
     countdownInterval: null,
+    configSyncTimer: null,
     isSoloMode: false,
     isGuest: false,
     riverSim: null,
     roomId: null
   };
+
+  function hasActiveRoom() {
+    return Boolean(state.roomId && !state.isSoloMode && window.realtimeEngine);
+  }
+
+  // Lightweight config (without heavy photo base64) so READY_CHANGE packets are always tiny (< 1 KB)
+  function getLightweightConfig() {
+    const cfg = state.builder.exportConfig();
+    if (cfg.photo) {
+      cfg.photo = {
+        frame: cfg.photo.frame,
+        scale: cfg.photo.scale,
+        rotate: cfg.photo.rotate,
+        x: cfg.photo.x,
+        y: cfg.photo.y
+      };
+    }
+    return cfg;
+  }
+
+  // Merge incoming partner config while preserving previously received photo.dataUrl
+  function mergePartnerConfig(incoming) {
+    if (!incoming) return;
+    const prevPhoto = state.partnerConfig && state.partnerConfig.photo ? state.partnerConfig.photo : null;
+    const merged = Object.assign({}, state.partnerConfig || {}, incoming);
+    if (incoming.photo) {
+      merged.photo = Object.assign({}, prevPhoto || {}, incoming.photo);
+      if (incoming.photo.dataUrl === undefined && prevPhoto && prevPhoto.dataUrl) {
+        merged.photo.dataUrl = prevPhoto.dataUrl;
+      }
+    } else if (prevPhoto) {
+      merged.photo = prevPhoto;
+    }
+    state.partnerConfig = merged;
+  }
+
+  // Debounced krathong config sync so rapid typing/sliders don't flood MQTT brokers
+  function scheduleConfigSync(immediate = false) {
+    if (!hasActiveRoom()) return;
+    if (state.configSyncTimer) {
+      clearTimeout(state.configSyncTimer);
+      state.configSyncTimer = null;
+    }
+    const emit = () => {
+      if (!hasActiveRoom()) return;
+      window.realtimeEngine.sendKrathongConfig(state.builder.exportConfig());
+    };
+    if (immediate) {
+      emit();
+    } else {
+      state.configSyncTimer = setTimeout(emit, 180);
+    }
+  }
+
+  // Compress uploaded couple photo so it always fits safely inside MQTT & WebRTC packets (~15-35 KB)
+  function compressPhotoDataUrl(dataUrl, callback) {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 360;
+          let w = img.naturalWidth || img.width || maxDim;
+          let h = img.naturalHeight || img.height || maxDim;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.max(1, Math.round(w * ratio));
+            h = Math.max(1, Math.round(h * ratio));
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          let compressed = canvas.toDataURL('image/jpeg', 0.72);
+          if (compressed.length > 90000) {
+            compressed = canvas.toDataURL('image/jpeg', 0.52);
+          }
+          callback(compressed);
+        } catch (err) {
+          callback(dataUrl);
+        }
+      };
+      img.onerror = () => callback(dataUrl);
+      img.src = dataUrl;
+    } catch (e) {
+      callback(dataUrl);
+    }
+  }
+
+  function resetRoomState() {
+    stopCountdown();
+    if (state.configSyncTimer) {
+      clearTimeout(state.configSyncTimer);
+      state.configSyncTimer = null;
+    }
+    if (window.realtimeEngine) {
+      window.realtimeEngine.disconnect();
+    }
+    state.roomId = null;
+    state.isGuest = false;
+    state.partnerConnected = false;
+    state.cloudConnected = false;
+    state.myReady = false;
+    state.partnerReady = false;
+    state.readySeq = 0;
+    state.partnerConfig = null;
+    updateReadyUI();
+  }
 
   // Pre-fill partner dummy config for solo mode
   const defaultPartnerConfig = {
@@ -177,12 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.screen === 'river') {
       state.myReady = false;
       state.partnerReady = false;
+      state.readySeq++;
       updateReadyUI();
+      if (hasActiveRoom()) {
+        window.realtimeEngine.sendReadyChange(false, getLightweightConfig(), state.readySeq);
+      }
       showScreen('studio', true);
     } else if (state.screen === 'studio') {
       if (confirm('ต้องการย้อนกลับสู่หน้าแรกหรือไม่?')) {
-        state.myReady = false;
-        state.partnerReady = false;
+        resetRoomState();
         showScreen('home', true);
       }
     } else {
@@ -191,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- LIVE PREVIEW UPDATE ---
-  function updateLivePreview() {
+  function updateLivePreview(skipSync = false) {
     if (!liveStage) return;
 
     if (state.previewTarget === 'mine') {
@@ -206,9 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
       liveStage.innerHTML = pBuilder.generateSVG(300, 300, false);
     }
 
-    // If connected to partner, send real-time design sync
-    if (state.roomId && window.realtimeEngine.isConnected) {
-      window.realtimeEngine.sendKrathongConfig(state.builder.exportConfig());
+    // Send real-time design sync whenever in an active room (not gated on partnerConnected)
+    if (!skipSync && hasActiveRoom()) {
+      scheduleConfigSync(false);
     }
   }
 
@@ -240,10 +354,14 @@ document.addEventListener('DOMContentLoaded', () => {
         chipPartnerReady.className = 'ready-chip is-waiting';
         iconPartnerReady.textContent = '✏️';
         textPartnerReady.textContent = `${partnerName}: กำลังแต่ง`;
-      } else {
+      } else if (state.cloudConnected) {
         chipPartnerReady.className = 'ready-chip';
         iconPartnerReady.textContent = '⏳';
-        textPartnerReady.textContent = `${partnerName}: รอเชื่อมต่อ...`;
+        textPartnerReady.textContent = `${partnerName}: รอแฟนเข้าห้อง...`;
+      } else {
+        chipPartnerReady.className = 'ready-chip';
+        iconPartnerReady.textContent = '🔄';
+        textPartnerReady.textContent = `${partnerName}: กำลังเชื่อมต่อ...`;
       }
     }
 
@@ -432,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Brand header returns to home
     document.getElementById('brand-home-btn').addEventListener('click', () => {
       if (confirm('ต้องการกลับสู่หน้าแรกหรือไม่?')) {
-        stopCountdown();
+        resetRoomState();
         showScreen('home');
       }
     });
@@ -441,6 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mode 1: Create Couple Room
     const handleCreateRoom = (e) => {
       if (e) e.stopPropagation();
+      resetRoomState();
       try {
         const code = window.realtimeEngine.createRoom();
         state.roomId = code;
@@ -449,6 +568,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state.roomId = 'LOVE-' + Math.floor(1000 + Math.random() * 9000);
       }
       state.isSoloMode = false;
+      state.isGuest = false;
+      updateReadyUI();
 
       if (headerRoomBadge) headerRoomBadge.style.display = 'none';
       if (headerRoomText) headerRoomText.textContent = `ห้อง: ${state.roomId}`;
@@ -482,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mode 3: Solo / Couple on One Device
     const handleSoloMode = (e) => {
       if (e) e.stopPropagation();
+      resetRoomState();
       state.isSoloMode = true;
       state.partnerConfig = defaultPartnerConfig;
       updateReadyUI();
@@ -513,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modalShareBackBtn) {
       modalShareBackBtn.addEventListener('click', () => {
         if (modalShare) modalShare.classList.remove('open');
+        resetRoomState();
         showScreen('home', true);
       });
     }
@@ -612,14 +735,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          state.builder.setPhoto(event.target.result);
-          updateLivePreview();
-          photoUploadTrigger.innerHTML = `
-            <div style="font-size: 1.5rem; margin-bottom: 4px;">✅</div>
-            <div style="font-weight: 600; color: var(--gold-glow);">อัพโหลดรูปสำเร็จแล้ว!</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">คลิกเพื่อเปลี่ยนรูปใหม่</div>
-          `;
-          window.audioEngine.playSparkle();
+          compressPhotoDataUrl(event.target.result, (compressedUrl) => {
+            state.builder.setPhoto(compressedUrl);
+            updateLivePreview();
+            photoUploadTrigger.innerHTML = `
+              <div style="font-size: 1.5rem; margin-bottom: 4px;">✅</div>
+              <div style="font-weight: 600; color: var(--gold-glow);">อัพโหลดรูปสำเร็จแล้ว!</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">คลิกเพื่อเปลี่ยนรูปใหม่</div>
+            `;
+            window.audioEngine.playSparkle();
+          });
         };
         reader.readAsDataURL(file);
       }
@@ -676,9 +801,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.builder.setOption('myName', val);
         updateReadyUI();
         updateLivePreview();
-        if (window.realtimeEngine && window.realtimeEngine.isConnected) {
-          window.realtimeEngine.sendKrathongConfig(state.builder.exportConfig());
-        }
       });
     }
 
@@ -696,9 +818,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.builder.setOption('partnerName', val);
         updateReadyUI();
         updateLivePreview();
-        if (window.realtimeEngine && window.realtimeEngine.isConnected) {
-          window.realtimeEngine.sendKrathongConfig(state.builder.exportConfig());
-        }
       });
     }
 
@@ -721,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Back from Studio to Home
     document.getElementById('btn-back-home').addEventListener('click', () => {
-      stopCountdown();
+      resetRoomState();
       showScreen('home');
     });
 
@@ -768,11 +887,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Toggle ready status
       state.myReady = !state.myReady;
+      state.readySeq++;
       updateReadyUI();
 
-      // Send to partner
-      if (window.realtimeEngine.isConnected) {
-        window.realtimeEngine.sendReadyChange(state.myReady, state.builder.exportConfig());
+      // Always send to partner whenever in a room (even if handshake is still completing!)
+      // Send lightweight READY_CHANGE first (never blocked by large photo), then sync full config
+      if (hasActiveRoom()) {
+        window.realtimeEngine.sendReadyChange(state.myReady, getLightweightConfig(), state.readySeq);
+        scheduleConfigSync(true);
       }
 
       if (state.myReady) {
@@ -782,8 +904,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.partnerReady || state.isSoloMode) {
           if (!state.isCountingDown && state.screen !== 'river') {
             showToast('🎉 พร้อมทั้งสองคนแล้ว! เริ่มนับถอยหลังลอยกระทง 10 วินาที');
-            if (window.realtimeEngine.isConnected) {
-              window.realtimeEngine.sendCountdownStart(Date.now());
+            if (hasActiveRoom()) {
+              window.realtimeEngine.sendCountdownStart(Date.now(), state.readySeq);
             }
             startCountdown();
           }
@@ -800,9 +922,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCancelCountdown.addEventListener('click', () => {
       stopCountdown();
       state.myReady = false;
+      state.readySeq++;
       updateReadyUI();
-      if (window.realtimeEngine.isConnected) {
-        window.realtimeEngine.sendReadyChange(false, state.builder.exportConfig());
+      if (hasActiveRoom()) {
+        window.realtimeEngine.sendReadyChange(false, getLightweightConfig(), state.readySeq);
       }
       showToast('ยกเลิกนับถอยหลัง กลับมาแก้ไขกระทงต่อ');
     });
@@ -833,7 +956,11 @@ document.addEventListener('DOMContentLoaded', () => {
       btnRiverBackStudio.addEventListener('click', () => {
         state.myReady = false;
         state.partnerReady = false;
+        state.readySeq++;
         updateReadyUI();
+        if (hasActiveRoom()) {
+          window.realtimeEngine.sendReadyChange(false, getLightweightConfig(), state.readySeq);
+        }
         showScreen('studio', true);
       });
     }
@@ -842,8 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnRiverBackHome) {
       btnRiverBackHome.addEventListener('click', () => {
         if (confirm('ต้องการย้อนกลับสู่หน้าแรกหรือไม่?')) {
-          state.myReady = false;
-          state.partnerReady = false;
+          resetRoomState();
           showScreen('home', true);
         }
       });
@@ -860,28 +986,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // River Bottom Reactions
     document.getElementById('btn-react-heart').addEventListener('click', () => {
       triggerHeartReaction('me');
-      if (window.realtimeEngine.isConnected) {
+      if (hasActiveRoom()) {
         window.realtimeEngine.sendReaction('heart');
       }
     });
 
     document.getElementById('btn-react-firework').addEventListener('click', () => {
       triggerFireworkReaction();
-      if (window.realtimeEngine.isConnected) {
+      if (hasActiveRoom()) {
         window.realtimeEngine.sendReaction('firework');
       }
     });
 
     document.getElementById('btn-react-lantern').addEventListener('click', () => {
       triggerLanternReaction();
-      if (window.realtimeEngine.isConnected) {
+      if (hasActiveRoom()) {
         window.realtimeEngine.sendReaction('lantern');
       }
     });
 
     document.getElementById('btn-react-petal').addEventListener('click', () => {
       triggerPetalReaction();
-      if (window.realtimeEngine.isConnected) {
+      if (hasActiveRoom()) {
         window.realtimeEngine.sendReaction('petal');
       }
     });
@@ -922,22 +1048,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- JOIN ROOM HELPER ---
   function joinRoomWithCode(code) {
-    state.roomId = code;
+    const normalizedCode = code.trim().toUpperCase();
+    resetRoomState();
+    state.roomId = normalizedCode;
     state.isSoloMode = false;
     state.isGuest = true;
-    window.realtimeEngine.joinRoom(code);
+    window.realtimeEngine.joinRoom(normalizedCode);
 
     if (headerRoomBadge) headerRoomBadge.style.display = 'none';
-    if (headerRoomText) headerRoomText.textContent = `ห้อง: ${code}`;
+    if (headerRoomText) headerRoomText.textContent = `ห้อง: ${normalizedCode}`;
 
     updateReadyUI();
-    showToast(`เข้าร่วมห้อง ${code} สำเร็จ! ✨`);
+    showToast(`เข้าร่วมห้อง ${normalizedCode} สำเร็จ! ✨`);
     showScreen('studio');
   }
 
   // --- REALTIME SYNC HANDLERS ---
   function setupRealtimeHandlers() {
     const rt = window.realtimeEngine;
+
+    // Provide live local state for bidirectional handshake & periodic heartbeat reconciliation
+    rt.setLocalStateProvider(() => ({
+      isReady: state.myReady,
+      readySeq: state.readySeq,
+      isCountingDown: state.isCountingDown,
+      screen: state.screen,
+      myName: state.builder.config.myName || (inputMyName ? inputMyName.value.trim() : ''),
+      partnerName: state.builder.config.partnerName || (inputPartnerName ? inputPartnerName.value.trim() : '')
+    }));
+
+    rt.onCloudStatusChange = (connected) => {
+      state.cloudConnected = connected;
+      updateReadyUI();
+    };
+
+    const syncMyStateToPartner = () => {
+      if (!hasActiveRoom()) return;
+      rt.sendKrathongConfig(state.builder.exportConfig());
+      rt.sendReadyChange(state.myReady, getLightweightConfig(), state.readySeq);
+      if (state.isCountingDown && state.myReady) {
+        rt.sendCountdownStart(Date.now(), state.readySeq);
+      }
+    };
 
     rt.onPartnerConnected = () => {
       state.partnerConnected = true;
@@ -946,15 +1098,19 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('แฟนของคุณเชื่อมต่อเข้ามาในห้องแล้ว! 💕');
       window.audioEngine.playSparkle();
 
-      // Send my design & my ready status so partner sees it
-      rt.sendKrathongConfig(state.builder.exportConfig());
-      if (state.myReady && !state.isCountingDown && state.screen !== 'river') {
-        rt.sendReadyChange(true, state.builder.exportConfig());
-      }
+      // Send my design & current ready status so partner sees it immediately
+      syncMyStateToPartner();
+    };
+
+    // Fired if partner reconnects (e.g., returned from WhatsApp/LINE on mobile)
+    rt.onPartnerResyncNeeded = () => {
+      state.partnerConnected = true;
+      updateReadyUI();
+      syncMyStateToPartner();
     };
 
     rt.onPartnerKrathong = (config) => {
-      state.partnerConfig = config;
+      mergePartnerConfig(config);
 
       // If guest joined without entering names, inherit the names the host set for them!
       if (state.isGuest && config) {
@@ -968,22 +1124,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // If currently previewing partner's Krathong, live update it!
+      updateReadyUI();
+
+      // If currently previewing partner's Krathong, live update it (skip re-sending our own config)
       if (state.previewTarget === 'partner') {
-        updateLivePreview();
+        updateLivePreview(true);
       }
       if (state.riverSim && state.screen === 'river') {
-        const pCfg = Object.assign({}, config);
+        const pCfg = Object.assign({}, defaultPartnerConfig, state.partnerConfig || {});
         pCfg.myName = getPartnerName();
         pCfg.partnerName = getMyName();
         state.riverSim.updatePartnerKrathong(pCfg);
       }
     };
 
+    // Reconcile ready/countdown state from periodic heartbeat & handshake acks
+    rt.onPartnerStateSync = (data) => {
+      if (!data) return;
+      if (data.myName || data.partnerName) {
+        mergePartnerConfig({
+          myName: data.myName || (state.partnerConfig && state.partnerConfig.myName) || '',
+          partnerName: data.partnerName || (state.partnerConfig && state.partnerConfig.partnerName) || ''
+        });
+        if (state.isGuest) {
+          if (!state.builder.config.myName && data.partnerName) {
+            state.builder.setOption('myName', data.partnerName);
+            if (inputMyName) inputMyName.value = data.partnerName;
+          }
+          if (!state.builder.config.partnerName && data.myName) {
+            state.builder.setOption('partnerName', data.myName);
+            if (inputPartnerName) inputPartnerName.value = data.myName;
+          }
+        }
+      }
+
+      const partnerNowReady = !!data.isReady;
+      const readyChanged = partnerNowReady !== state.partnerReady;
+      state.partnerReady = partnerNowReady;
+      if (readyChanged) {
+        updateReadyUI();
+      }
+
+      if (state.screen === 'studio') {
+        if (partnerNowReady && state.myReady && !state.isCountingDown) {
+          if (data.screen === 'river') {
+            showScreen('river');
+          } else {
+            rt.sendCountdownStart(Date.now(), state.readySeq);
+            startCountdown();
+          }
+        } else if (!partnerNowReady && state.isCountingDown) {
+          stopCountdown();
+          showToast(`✏️ ${getPartnerName()} ขอกลับไปแก้ไขกระทงต่อสักครู่...`);
+        }
+      }
+    };
+
     // When partner presses Ready or cancels Ready
     rt.onPartnerReadyChange = (isReady, config) => {
-      state.partnerReady = isReady;
-      if (config) state.partnerConfig = config;
+      state.partnerReady = !!isReady;
+      if (config) mergePartnerConfig(config);
       updateReadyUI();
 
       const partnerName = getPartnerName();
@@ -992,8 +1192,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`💖 ${partnerName} กด Ready แล้ว! พร้อมลอยกระทง`);
         window.audioEngine.playSparkle();
 
-        // If I am also ready, trigger 10-second countdown!
+        // If I am also ready, trigger 10-second countdown AND notify partner symmetrically!
         if (state.myReady && !state.isCountingDown && state.screen !== 'river') {
+          if (hasActiveRoom()) {
+            rt.sendCountdownStart(Date.now(), state.readySeq);
+          }
           startCountdown();
         }
       } else {
@@ -1004,14 +1207,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // When countdown starts from either peer
     rt.onCountdownStart = () => {
-      if (!state.isCountingDown && state.screen !== 'river') {
-        startCountdown();
+      if (state.screen === 'river') return;
+
+      // Only start countdown if we are also ready (prevents stale start after we canceled)
+      if (state.myReady) {
+        if (!state.partnerReady) {
+          state.partnerReady = true;
+          updateReadyUI();
+        }
+        if (!state.isCountingDown) {
+          startCountdown();
+        }
+      } else if (hasActiveRoom()) {
+        // Tell partner we canceled Ready so they don't float alone
+        rt.sendReadyChange(false, getLightweightConfig(), state.readySeq);
       }
     };
 
     rt.onFloatTogether = (data) => {
       if (data && data.config) {
-        state.partnerConfig = data.config;
+        mergePartnerConfig(data.config);
       }
       stopCountdown();
       showToast('แฟนปล่อยกระทงลงแม่น้ำแล้ว! ไปลอยคู่กันเลย 🌕');
@@ -1129,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast(`กระซิบรัก: ${message}`);
     window.audioEngine.playSparkle();
 
-    if (window.realtimeEngine.isConnected) {
+    if (hasActiveRoom()) {
       window.realtimeEngine.sendChat(message, state.builder.config.myName);
     }
   }

@@ -23,18 +23,21 @@ class LoyKrathongAudio {
 
   init() {
     // 1. Web Audio API for interactive SFX
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
-        this.masterGain.connect(this.ctx.destination);
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+          this.masterGain.connect(this.ctx.destination);
+        }
       }
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        const p = this.ctx.resume();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch (e) {}
 
     // 2. HTML5 Audio element for the single BGM song
     if (!this.bgmAudio) {
@@ -148,93 +151,103 @@ class LoyKrathongAudio {
 
   // --- SOUND EFFECTS (SFX) ---
   scheduleChingRhythm(delaySec = 0, type = 'ching') {
-    this.init();
-    if (!this.ctx || !this.masterGain) return;
-    const t = this.ctx.currentTime + delaySec;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    try {
+      this.init();
+      if (!this.ctx || !this.masterGain) return;
+      const t = this.ctx.currentTime + delaySec;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(type === 'ching' ? 2400 : 1800, t);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(type === 'ching' ? 2400 : 1800, t);
 
-    gain.gain.setValueAtTime(0.08, t);
-    const decay = type === 'ching' ? 0.4 : 0.08;
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      gain.gain.setValueAtTime(0.08, t);
+      const decay = type === 'ching' ? 0.4 : 0.08;
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
 
-    osc.connect(gain);
-    gain.connect(this.masterGain);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
 
-    osc.start(t);
-    osc.stop(t + decay);
+      osc.start(t);
+      osc.stop(t + decay);
+    } catch (e) {}
   }
 
   playWaterSplash() {
-    this.init();
-    if (!this.ctx || !this.masterGain) return;
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(320, t);
-    osc.frequency.exponentialRampToValueAtTime(90, t + 0.4);
-    gain.gain.setValueAtTime(0.3, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(t);
-    osc.stop(t + 0.5);
+    try {
+      this.init();
+      if (!this.ctx || !this.masterGain) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, t);
+      osc.frequency.exponentialRampToValueAtTime(90, t + 0.4);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    } catch (e) {}
   }
 
   playSparkle() {
-    this.init();
-    if (!this.ctx || !this.masterGain) return;
-    const t = this.ctx.currentTime;
-    [1046, 1318, 1567, 2093].forEach((f, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(f, t + idx * 0.05);
-      gain.gain.setValueAtTime(0.12, t + idx * 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.05 + 0.2);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(t + idx * 0.05);
-      osc.stop(t + idx * 0.05 + 0.22);
-    });
+    try {
+      this.init();
+      if (!this.ctx || !this.masterGain) return;
+      const t = this.ctx.currentTime;
+      [1046, 1318, 1567, 2093].forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, t + idx * 0.05);
+        gain.gain.setValueAtTime(0.12, t + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.05 + 0.2);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t + idx * 0.05);
+        osc.stop(t + idx * 0.05 + 0.22);
+      });
+    } catch (e) {}
   }
 
   playFirework() {
-    this.init();
-    if (!this.ctx || !this.masterGain) return;
-    const t = this.ctx.currentTime;
-    // Whoosh up
-    const whoosh = this.ctx.createOscillator();
-    const wGain = this.ctx.createGain();
-    whoosh.frequency.setValueAtTime(200, t);
-    whoosh.frequency.exponentialRampToValueAtTime(800, t + 0.3);
-    wGain.gain.setValueAtTime(0.15, t);
-    wGain.gain.linearRampToValueAtTime(0.01, t + 0.3);
-    whoosh.connect(wGain);
-    wGain.connect(this.masterGain);
-    whoosh.start(t);
-    whoosh.stop(t + 0.32);
-
-    // Boom
-    setTimeout(() => {
+    try {
+      this.init();
       if (!this.ctx || !this.masterGain) return;
-      const bt = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const bGain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(140, bt);
-      osc.frequency.exponentialRampToValueAtTime(30, bt + 0.6);
-      bGain.gain.setValueAtTime(0.4, bt);
-      bGain.gain.exponentialRampToValueAtTime(0.001, bt + 0.7);
-      osc.connect(bGain);
-      bGain.connect(this.masterGain);
-      osc.start(bt);
-      osc.stop(bt + 0.75);
-    }, 280);
+      const t = this.ctx.currentTime;
+      // Whoosh up
+      const whoosh = this.ctx.createOscillator();
+      const wGain = this.ctx.createGain();
+      whoosh.frequency.setValueAtTime(200, t);
+      whoosh.frequency.exponentialRampToValueAtTime(800, t + 0.3);
+      wGain.gain.setValueAtTime(0.15, t);
+      wGain.gain.linearRampToValueAtTime(0.01, t + 0.3);
+      whoosh.connect(wGain);
+      wGain.connect(this.masterGain);
+      whoosh.start(t);
+      whoosh.stop(t + 0.32);
+
+      // Boom
+      setTimeout(() => {
+        try {
+          if (!this.ctx || !this.masterGain) return;
+          const bt = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(140, bt);
+          osc.frequency.exponentialRampToValueAtTime(30, bt + 0.6);
+          bGain.gain.setValueAtTime(0.4, bt);
+          bGain.gain.exponentialRampToValueAtTime(0.001, bt + 0.7);
+          osc.connect(bGain);
+          bGain.connect(this.masterGain);
+          osc.start(bt);
+          osc.stop(bt + 0.75);
+        } catch (e) {}
+      }, 280);
+    } catch (e) {}
   }
 }
 

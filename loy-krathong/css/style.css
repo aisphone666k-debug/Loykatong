@@ -958,9 +958,9 @@ input::placeholder, textarea::placeholder {
   transform: scale(0.95);
 }
 
-/* Quick chat toast popup */
+/* Quick chat toast popup (global overlay across all screens) */
 .chat-toast-container {
-  position: absolute;
+  position: fixed;
   bottom: 90px;
   left: 50%;
   transform: translateX(-50%);
@@ -968,8 +968,11 @@ input::placeholder, textarea::placeholder {
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
-  z-index: 50;
+  z-index: 2500;
   align-items: center;
+  width: max-content;
+  max-width: 92vw;
+  text-align: center;
 }
 
 .chat-bubble {

@@ -13,10 +13,10 @@
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
   
-  <!-- PeerJS for WebRTC Realtime Couple Connection -->
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <!-- MQTT.js for Worldwide Cross-Country Realtime Connection -->
-  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <!-- PeerJS for WebRTC Realtime Couple Connection (with jsDelivr fallback) -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';document.head.appendChild(s);"></script>
+  <!-- MQTT.js for Worldwide Cross-Country Realtime Connection (with jsDelivr fallback) -->
+  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js';document.head.appendChild(s);"></script>
 </head>
 <body>
 
@@ -370,9 +370,6 @@
             </div>
           </div>
 
-          <!-- Chat Toast Floating Container -->
-          <div class="chat-toast-container" id="chat-toast-container"></div>
-
           <!-- Bottom Reaction Interactive Bar -->
           <div class="river-bottom-bar">
             <button class="reaction-btn" id="btn-react-heart" title="ส่งหัวใจบอกรัก">
@@ -544,6 +541,9 @@
       </button>
     </div>
   </div>
+
+  <!-- Global Toast Container (visible across Home, Studio, and River screens) -->
+  <div class="chat-toast-container" id="chat-toast-container"></div>
 
   <!-- JavaScript Modules -->
   <script src="js/audio.js"></script>
